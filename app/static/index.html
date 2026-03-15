@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Schedule Appointment</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      background: #f2f5f9;
+      color: #1a2733;
+    }
+    .page { max-width: 1060px; margin: 24px auto; padding: 0 16px 48px; }
+
+    .card {
+      background: #fff;
+      border: 1px solid #dce4ed;
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .card-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 13px 16px;
+      border-bottom: 1px solid #ecf0f6;
+      background: #fafbfd;
+    }
+    .card-body { padding: 18px 16px; }
+
+    .step-badge {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #1f6fb2; color: #fff;
+      font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-badge.done { background: #1a8f4e; }
+    .card-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+
+    .lbl {
+      display: block; font-size: 11px; font-weight: 600;
+      color: #6b7a8a; text-transform: uppercase; letter-spacing: .04em;
+      margin-bottom: 5px;
+    }
+    .muted { color: #6b7a8a; font-size: 13px; }
+    .note {
+      background: #f0f7ff; border: 1px solid #c2daf5; border-radius: 8px;
+      padding: 8px 12px; font-size: 13px; color: #1f5f96; margin-top: 10px;
+    }
+    .divider { border: none; border-top: 1px solid #ecf0f6; margin: 16px 0; }
+
+    .fg { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+    input, select, textarea {
+      width: 100%; padding: 9px 11px;
+      border: 1px solid #d0d9e3; border-radius: 8px;
+      font: inherit; color: #1a2733; background: #fff;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: #1f6fb2;
+      box-shadow: 0 0 0 3px rgba(31,111,178,.12);
+    }
+    textarea { min-height: 68px; resize: vertical; }
+    input[readonly] { background: #f7f9fb; color: #6b7a8a; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 5px; padding: 9px 16px;
+      border: none; border-radius: 8px;
+      font: inherit; font-size: 13px; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+    }
+    .btn-primary { background: #1f6fb2; color: #fff; }
+    .btn-primary:hover { background: #1a5f9c; }
+    .btn-outline { background: #fff; color: #1f6fb2; border: 1px solid #1f6fb2; }
+    .btn-outline:hover { background: #f0f7ff; }
+    .btn-ghost { background: transparent; color: #1f6fb2; padding: 5px 8px; font-size: 12px; }
+    .btn-ghost:hover { background: #f0f7ff; border-radius: 6px; }
+    .btn-plain { background: #f0f4f8; color: #1a2733; border: 1px solid #d0d9e3; }
+    .btn-plain:hover { background: #e4ecf5; }
+    .btn-lg { padding: 11px 22px; font-size: 14px; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .search-row { display: flex; gap: 8px; }
+    .search-row input { flex: 1; }
+
+    .result-list { margin-top: 10px; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+    .result-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      border: 1px solid #e4eaf2; border-radius: 9px; padding: 10px 12px;
+    }
+    .result-item:hover { border-color: #aac8e8; }
+    .result-item .ri-name { font-weight: 600; }
+    .result-item .ri-meta { font-size: 12px; color: #6b7a8a; margin-top: 2px; }
+
+    .patient-card {
+      display: flex; align-items: center; gap: 12px;
+      background: #f0f7ff; border: 2px solid #1f6fb2;
+      border-radius: 10px; padding: 13px 14px;
+    }
+    .pat-avatar {
+      width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+      background: #1f6fb2; color: #fff;
+      font-weight: 700; font-size: 17px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .patient-card .pc-name { font-weight: 700; font-size: 15px; }
+    .patient-card .pc-meta { font-size: 12px; color: #4d6c87; margin-top: 3px; }
+
+    .rec-card {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      border: 1px solid #d0d9e3; border-radius: 10px; padding: 12px 14px;
+      background: #fafbfc; margin-bottom: 10px;
+    }
+    .assigned-badge {
+      display: inline-block; background: #e8f5e9; color: #1b7a3e;
+      border: 1px solid #b5dfc0; border-radius: 999px;
+      font-size: 11px; font-weight: 700; padding: 2px 8px; margin-bottom: 4px;
+    }
+    .rec-card .rp-name { font-weight: 600; font-size: 14px; }
+    .rec-card .rp-meta { font-size: 12px; color: #6b7a8a; margin-top: 2px; }
+
+    .avail-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 12px; }
+    .avail-day-head {
+      font-size: 10px; font-weight: 700; color: #8797a5;
+      text-transform: uppercase; margin-bottom: 5px; line-height: 1.4;
+    }
+    .slot-btn {
+      display: block; width: 100%; padding: 6px 3px;
+      font: inherit; font-size: 12px;
+      border: 1px solid #dce4ed; border-radius: 6px;
+      background: #fff; color: #1a2733; cursor: pointer;
+      margin-bottom: 4px; text-align: center;
+    }
+    .slot-btn:hover:not(:disabled) { border-color: #1f6fb2; background: #f0f7ff; }
+    .slot-btn.selected { background: #1f6fb2; color: #fff; border-color: #1f6fb2; }
+    .slot-btn:disabled { background: #f6f8fa; color: #b8c4ce; border-color: #ecf0f6; cursor: default; }
+
+    .risk-bar-wrap { height: 10px; border-radius: 999px; background: #ecf0f6; overflow: hidden; margin: 12px 0 8px; }
+    .risk-bar { height: 100%; border-radius: 999px; transition: width 600ms cubic-bezier(.16,1,.3,1); }
+
+    .risk-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 999px;
+      font-weight: 700; font-size: 13px;
+    }
+    .risk-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+    .chip-high            { color: #bb2f2f; background: #fff5f5; border: 1px solid #f5c6c6; }
+    .chip-medium          { color: #c97318; background: #fff9ed; border: 1px solid #f5dda8; }
+    .chip-low             { color: #1a8f4e; background: #f0faf5; border: 1px solid #aadec5; }
+    .chip-not_enough_data { color: #637181; background: #f4f6f8; border: 1px solid #d0d9e3; }
+
+    .na-box {
+      background: #f4f6f8; border: 1px solid #d0d9e3; border-radius: 10px;
+      padding: 18px; text-align: center; color: #637181; margin-top: 10px;
+    }
+    .na-box strong { font-size: 20px; display: block; margin-bottom: 6px; }
+
+    .action-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+    .page-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 16px; gap: 12px;
+    }
+    .page-header h1 { margin: 0; font-size: 22px; }
+    .page-header p  { margin: 4px 0 0; color: #6b7a8a; font-size: 13px; }
+
+    .hidden { display: none !important; }
+    .flex   { display: flex; align-items: center; gap: 8px; }
+    .mt8  { margin-top: 8px; }
+    .mt14 { margin-top: 14px; }
+    .mt16 { margin-top: 16px; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- BOOKING FLOW -->
+  <div id="booking-flow">
+    <div class="page-header">
+      <div>
+        <h1>Schedule Appointment</h1>
+        <p>Book an in-person appointment for a patient.</p>
+      </div>
+    </div>
+
+    <!-- Step 1: Find Patient -->
+    <div class="card">
+      <div class="card-head">
+        <div class="step-badge" id="badge-1">1</div>
+        <h2>Find Patient</h2>
+      </div>
+      <div class="card-body">
+
+        <div id="patient-search-ui">
+          <div class="search-row">
+            <input id="patient-q" placeholder="Search by patient ID or name &mdash; e.g. Yadav or pat-1001" />
+            <button class="btn btn-primary" id="btn-patient-search">Search</button>
+          </div>
+          <div id="patient-results" class="result-list"></div>
+        </div>
+
+        <div id="patient-selected-ui" class="hidden">
+          <div class="patient-card">
+            <div class="pat-avatar" id="pat-avatar"></div>
+            <div style="flex:1">
+              <div class="pc-name" id="pat-name"></div>
+              <div class="pc-meta" id="pat-meta"></div>
+            </div>
+            <button class="btn btn-ghost" id="btn-change-patient">Change</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Step 2: Provider & Schedule -->
+    <div class="card">
+      <div class="card-head">
+        <div class="step-badge" id="badge-2">2</div>
+        <h2>Provider &amp; Schedule</h2>
+      </div>
+      <div class="card-body">
+
+        <p class="muted" id="provider-prompt">Select a patient first to load provider options.</p>
+
+        <div id="rec-provider-ui" class="hidden">
+          <div class="rec-card">
+            <div>
+              <div class="assigned-badge">Assigned Provider</div>
+              <div class="rp-name" id="rec-name"></div>
+              <div class="rp-meta" id="rec-meta"></div>
+            </div>
+            <div class="flex">
+              <button class="btn btn-primary" id="btn-load-avail">View Schedule</button>
+              <button class="btn btn-ghost" id="btn-change-provider">Change</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="provider-search-ui" class="hidden">
+          <div class="search-row">
+            <input id="provider-q" placeholder="Search by provider name, ID, or specialty" />
+            <button class="btn btn-plain" id="btn-provider-search">Search</button>
+          </div>
+          <div id="provider-results" class="result-list"></div>
+        </div>
+
+        <div id="avail-section" class="hidden">
+          <div class="divider"></div>
+          <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:6px">
+            <span style="font-weight:600;font-size:13px" id="avail-label"></span>
+            <span class="muted">7 days from today &nbsp;&middot;&nbsp; 30-min slots</span>
+          </div>
+          <div class="avail-grid" id="avail-grid"></div>
+          <p id="slot-label" class="muted mt8 hidden"></p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Step 3: Appointment Details -->
+    <div class="card">
+      <div class="card-head">
+        <div class="step-badge" id="badge-3">3</div>
+        <h2>Appointment Details</h2>
+      </div>
+      <div class="card-body">
+
+        <div class="fg">
+          <div>
+            <span class="lbl">Appointment Type</span>
+            <select id="appt-type">
+              <option value="new_patient">New Patient</option>
+              <option value="follow_up" selected>Follow-Up</option>
+              <option value="sick_visit">Sick Visit</option>
+              <option value="procedure">Procedure</option>
+              <option value="annual_wellness">Annual Wellness</option>
+              <option value="urgent_care">Urgent / Same-Day</option>
+              <option value="telehealth">Telehealth</option>
+            </select>
+          </div>
+          <div>
+            <span class="lbl">Duration</span>
+            <input id="appt-duration" readonly />
+          </div>
+          <div>
+            <span class="lbl">Urgent / Same-Day</span>
+            <select id="urgent-care">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+          <div>
+            <span class="lbl">Interpreter Needed</span>
+            <select id="interpreter">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="telehealth-note" class="note hidden">
+          Telehealth visits are not scored for no-show risk &mdash; the prediction will show <strong>N/A</strong> on confirmation.
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="fg">
+          <div>
+            <span class="lbl">Insurance Payer</span>
+            <input id="payer" placeholder="Aetna, BCBS, Medicare" />
+          </div>
+          <div>
+            <span class="lbl">Insurance Plan</span>
+            <input id="plan" placeholder="Plan name" />
+          </div>
+          <div>
+            <span class="lbl">Member ID</span>
+            <input id="member-id" placeholder="Insurance member ID" />
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="fg">
+          <div>
+            <span class="lbl">Referral Required</span>
+            <select id="referral-req">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+          <div>
+            <span class="lbl">Referral ID</span>
+            <input id="referral-id" placeholder="Optional" />
+          </div>
+          <div>
+            <span class="lbl">Reason for Visit</span>
+            <input id="reason" placeholder="Brief description" />
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="fg">
+          <div>
+            <span class="lbl">Reminder Channel</span>
+            <select id="reminder">
+              <option value="sms">SMS</option>
+              <option value="email">Email</option>
+              <option value="phone">Phone Call</option>
+              <option value="portal">Patient Portal</option>
+            </select>
+          </div>
+          <div>
+            <span class="lbl">Contact Name</span>
+            <input id="contact-name" placeholder="Optional emergency contact" />
+          </div>
+          <div>
+            <span class="lbl">Contact Phone</span>
+            <input id="contact-phone" placeholder="Optional" />
+          </div>
+        </div>
+
+        <div class="mt14">
+          <span class="lbl">Notes</span>
+          <textarea id="notes" placeholder="Optional scheduling notes"></textarea>
+        </div>
+
+        <div class="mt16">
+          <button class="btn btn-primary btn-lg" id="btn-schedule" disabled>Schedule Appointment</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- CONFIRMATION SCREEN -->
+  <div id="confirmation-screen" class="hidden">
+
+    <div class="page-header">
+      <div>
+        <h1>Appointment Confirmed</h1>
+        <p id="confirm-summary"></p>
+      </div>
+      <button class="btn btn-plain" id="btn-new-booking">Book Another</button>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+
+        <div class="lbl" style="margin-bottom:10px">NO-SHOW PREDICTION</div>
+
+        <div id="risk-section">
+          <div class="risk-bar-wrap"><div class="risk-bar" id="risk-bar"></div></div>
+          <div class="flex mt8" style="flex-wrap:wrap;gap:8px;align-items:center">
+            <span class="risk-chip" id="risk-chip">
+              <span class="risk-dot"></span>
+              <span id="risk-chip-label"></span>
+            </span>
+            <span class="muted" id="confidence-text" style="font-size:12px"></span>
+          </div>
+        </div>
+
+        <div id="na-section" class="hidden">
+          <div class="na-box">
+            <strong>N/A</strong>
+            No-show prediction does not apply to telehealth visits.
+          </div>
+        </div>
+
+        <div id="actions-section" class="hidden">
+          <div class="divider"></div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Suggested Actions</div>
+          <div class="action-row" id="action-btns"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="lbl" style="margin-bottom:8px">PREDICTION FEEDBACK</div>
+        <label class="flex" style="cursor:pointer;gap:6px">
+          <input id="wrong-check" type="checkbox" style="width:auto" />
+          This prediction looks wrong
+        </label>
+        <div id="feedback-form" class="hidden mt8">
+          <textarea id="feedback-text" placeholder="Tell us why this result seems wrong" rows="2"></textarea>
+          <div class="flex mt8">
+            <button class="btn btn-plain" id="btn-feedback">Submit Feedback</button>
+            <span id="feedback-status" class="muted" style="font-size:12px"></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+const TYPE_DUR = { new_patient:45, follow_up:20, sick_visit:15, procedure:60, annual_wellness:30, urgent_care:20, telehealth:20 };
+const ACT_LBL  = {
+  add_double_booking_candidate: "Add Double-Book Candidate",
+  send_additional_reminders:    "Send Extra Reminders",
+  notify_patient_contacts:      "Notify Patient Contacts",
+  ignore_for_now:               "Ignore For Now"
+};
+const BAR_W   = { high:80, medium:52, low:24, not_enough_data:40 };
+const BAR_COL = { high:"#bb2f2f", medium:"#c97318", low:"#1a8f4e", not_enough_data:"#8797a5" };
+const CHIP_CL = { high:"chip-high", medium:"chip-medium", low:"chip-low", not_enough_data:"chip-not_enough_data" };
+
+let selPatient  = null;
+let selProvider = null;
+let selSlot     = null;
+let lastPredId  = null;
+
+const $    = id => document.getElementById(id);
+const show = id => $(id).classList.remove("hidden");
+const hide = id => $(id).classList.add("hidden");
+const bval = id => $(id).value === "true";
+
+function initials(name) { return name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+function fmtTime(iso)   { return new Date(iso).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); }
+function fmtFull(iso)   { return new Date(iso).toLocaleString([],{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}); }
+function checkReady()   { $("btn-schedule").disabled = !(selPatient && selProvider && selSlot); }
+
+async function searchPatients() {
+  const q = $("patient-q").value.trim();
+  if (!q) { alert("Please enter a patient name or ID to search."); return; }
+  const rows = await fetch("/v1/booking/patients/search?q="+encodeURIComponent(q)).then(r=>r.json());
+  const list = $("patient-results");
+  list.innerHTML = "";
+  if (!rows.length) { list.innerHTML = '<p class="muted">No patients found.</p>'; return; }
+  rows.forEach(p => {
+    const el = document.createElement("div");
+    el.className = "result-item";
+    el.innerHTML = '<div><div class="ri-name">'+p.full_name+'</div><div class="ri-meta">'+p.patient_id+' &nbsp;&middot;&nbsp; DOB '+p.date_of_birth+' &nbsp;&middot;&nbsp; '+p.phone+'</div></div><button class="btn btn-outline" style="font-size:12px">Select</button>';
+    el.querySelector("button").onclick = () => selectPatient(p);
+    list.appendChild(el);
+  });
+}
+
+function selectPatient(p) {
+  selPatient = p; selProvider = null; selSlot = null;
+  hide("patient-search-ui"); show("patient-selected-ui");
+  $("badge-1").className = "step-badge done";
+  $("pat-avatar").textContent = initials(p.full_name);
+  $("pat-name").textContent   = p.full_name;
+  $("pat-meta").textContent   = p.patient_id + "  \u00b7  DOB " + p.date_of_birth + "  \u00b7  " + p.phone;
+  resetProviderSection(p); checkReady();
+}
+
+$("btn-patient-search").onclick = searchPatients;
+$("patient-q").addEventListener("keydown", e => { if (e.key==="Enter") searchPatients(); });
+$("btn-change-patient").onclick = () => {
+  selPatient = selProvider = selSlot = null;
+  hide("patient-selected-ui"); show("patient-search-ui");
+  $("patient-results").innerHTML = "";
+  $("badge-1").className = "step-badge";
+  resetProviderSection(null); checkReady();
+};
+
+function resetProviderSection(patient) {
+  hide("rec-provider-ui"); hide("provider-search-ui"); hide("avail-section");
+  $("avail-grid").innerHTML = ""; hide("slot-label"); selSlot = null;
+  if (!patient) { show("provider-prompt"); return; }
+  hide("provider-prompt");
+  if (patient.default_provider_id) { loadRecommendedProvider(patient.default_provider_id); }
+  else { show("provider-search-ui"); }
+}
+
+async function loadRecommendedProvider(provId) {
+  const rows = await fetch("/v1/booking/providers/search?q="+encodeURIComponent(provId)).then(r=>r.json());
+  const prov = rows.find(p => p.provider_id === provId);
+  if (!prov) { show("provider-search-ui"); return; }
+  selProvider = prov;
+  $("rec-name").textContent = prov.full_name;
+  $("rec-meta").textContent = prov.specialty.replace(/_/g," ") + " \u00b7 " + prov.location_name;
+  show("rec-provider-ui"); checkReady();
+}
+
+$("btn-load-avail").onclick = () => { if (selProvider) loadAvailability(selProvider); };
+$("btn-change-provider").onclick = () => {
+  selProvider = null; selSlot = null;
+  hide("rec-provider-ui"); hide("avail-section");
+  show("provider-search-ui"); checkReady();
+};
+
+async function searchProviders() {
+  const q = $("provider-q").value.trim();
+  const rows = await fetch("/v1/booking/providers/search?q="+encodeURIComponent(q)).then(r=>r.json());
+  const list = $("provider-results");
+  list.innerHTML = "";
+  rows.forEach(p => {
+    const el = document.createElement("div");
+    el.className = "result-item";
+    el.innerHTML = '<div><div class="ri-name">'+p.full_name+'</div><div class="ri-meta">'+p.specialty.replace(/_/g," ")+" \u00b7 "+p.location_name+'</div></div><button class="btn btn-outline" style="font-size:12px">Select</button>';
+    el.querySelector("button").onclick = () => {
+      selProvider = p; $("provider-results").innerHTML = "";
+      loadAvailability(p); checkReady();
+    };
+    list.appendChild(el);
+  });
+}
+
+$("btn-provider-search").onclick = searchProviders;
+$("provider-q").addEventListener("keydown", e => { if (e.key==="Enter") searchProviders(); });
+
+async function loadAvailability(provider) {
+  const days = await fetch("/v1/booking/providers/"+provider.provider_id+"/availability").then(r=>r.json());
+  $("avail-label").textContent = provider.full_name + " \u2014 Schedule";
+  const grid = $("avail-grid");
+  grid.innerHTML = ""; selSlot = null; hide("slot-label"); show("avail-section");
+  days.forEach(day => {
+    const col = document.createElement("div");
+    const parts = day.day.split(" ");
+    col.innerHTML = '<div class="avail-day-head">'+parts[0]+'<br>'+parts.slice(1).join(" ")+'</div>';
+    day.slots.slice(0,12).forEach(slot => {
+      const btn = document.createElement("button");
+      btn.className = "slot-btn"; btn.textContent = fmtTime(slot.start_time); btn.disabled = !slot.available;
+      btn.onclick = () => {
+        document.querySelectorAll(".slot-btn.selected").forEach(b=>b.classList.remove("selected"));
+        btn.classList.add("selected"); selSlot = slot.start_time;
+        const lbl = $("slot-label"); lbl.textContent = "\u2713 " + fmtFull(slot.start_time); lbl.classList.remove("hidden");
+        checkReady();
+      };
+      col.appendChild(btn);
+    });
+    grid.appendChild(col);
+  });
+}
+
+function updateType() {
+  const t = $("appt-type").value;
+  $("appt-duration").value = (TYPE_DUR[t]||20) + " min";
+  t === "telehealth" ? show("telehealth-note") : hide("telehealth-note");
+}
+$("appt-type").addEventListener("change", updateType);
+
+$("btn-schedule").onclick = async () => {
+  if (!(selPatient && selProvider && selSlot)) return;
+  const payload = {
+    patient_id: selPatient.patient_id, provider_id: selProvider.provider_id,
+    scheduled_at: new Date(selSlot).toISOString(), appointment_type: $("appt-type").value,
+    duration_minutes: TYPE_DUR[$("appt-type").value]||20,
+    urgent_care: bval("urgent-care"), insurance_payer: $("payer").value||null,
+    insurance_plan: $("plan").value||null, member_id: $("member-id").value||null,
+    referral_required: bval("referral-req"), referral_id: $("referral-id").value||null,
+    reason_for_visit: $("reason").value||null, interpreter_needed: bval("interpreter"),
+    reminder_channel: $("reminder").value, contact_name: $("contact-name").value||null,
+    contact_phone: $("contact-phone").value||null, notes: $("notes").value||null
+  };
+  const btn = $("btn-schedule"); btn.disabled=true; btn.textContent="Scheduling\u2026";
+  const res = await fetch("/v1/booking/schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  btn.disabled=false; btn.textContent="Schedule Appointment";
+  if (!res.ok) { alert((await res.json()).detail||"Could not schedule."); return; }
+  const body = await res.json(); lastPredId = body.prediction.prediction_id;
+  renderConfirmation(payload, body.prediction);
+};
+
+function renderConfirmation(payload, pred) {
+  hide("booking-flow"); show("confirmation-screen");
+  const al = payload.appointment_type.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+  $("confirm-summary").textContent = selPatient.full_name + "  \u00b7  " + selProvider.full_name + "  \u00b7  " + al + "  \u00b7  " + fmtFull(selSlot);
+  hide("actions-section"); $("wrong-check").checked=false; hide("feedback-form"); $("feedback-status").textContent="";
+  const band = pred.risk_band;
+  if (band === "not_applicable") { hide("risk-section"); show("na-section"); return; }
+  show("risk-section"); hide("na-section");
+  $("risk-bar").style.width = (BAR_W[band]||40)+"%";
+  $("risk-bar").style.background = BAR_COL[band]||"#8797a5";
+  const chip = $("risk-chip"); chip.className = "risk-chip "+(CHIP_CL[band]||"chip-not_enough_data");
+  $("risk-chip-label").textContent = pred.risk_label;
+  $("confidence-text").textContent = "Confidence: " + pred.confidence_label;
+  if (band==="high"||band==="medium") {
+    const acts = pred.recommended_actions.filter(a=>a!=="proceed_with_standard_workflow");
+    if (acts.length) {
+      const w=$("action-btns"); w.innerHTML="";
+      acts.forEach(a=>{ const b=document.createElement("button"); b.className="btn btn-plain"; b.style.fontSize="12px"; b.textContent=ACT_LBL[a]||a.replace(/_/g," "); w.appendChild(b); });
+      show("actions-section");
+    }
+  }
+}
+
+$("wrong-check").addEventListener("change",()=>{ $("wrong-check").checked?show("feedback-form"):hide("feedback-form"); });
+$("btn-feedback").onclick = async () => {
+  if (!lastPredId) return;
+  const res = await fetch("/v1/predictions/"+lastPredId+"/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_wrong:$("wrong-check").checked,reason_text:$("feedback-text").value||null,submitted_by:"scheduler_ui"})});
+  $("feedback-status").textContent = res.ok ? "Feedback saved." : "Save failed.";
+};
+
+$("btn-new-booking").onclick = () => {
+  selPatient=selProvider=selSlot=lastPredId=null;
+  show("booking-flow"); hide("confirmation-screen");
+  show("patient-search-ui"); hide("patient-selected-ui");
+  $("patient-results").innerHTML=""; $("patient-q").value="";
+  $("badge-1").className="step-badge"; resetProviderSection(null); $("btn-schedule").disabled=true;
+};
+
+updateType();
+</script>
+</body>
+</html>
