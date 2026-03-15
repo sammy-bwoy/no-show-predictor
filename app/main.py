@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import Base, engine, get_db, SessionLocal
+from app.ml.model_store import load_model_and_metadata
 from app.ml.train import InsufficientTrainingDataError, train_and_persist_model
 from app.models import Appointment, Prediction, PredictionFeedback
 from app.schemas import (
@@ -49,6 +50,9 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 def _ensure_sqlite_columns() -> None:
+    if not settings.database_url.startswith("sqlite"):
+        return
+
     with engine.begin() as conn:
         prediction_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(predictions)"))}
         if "confidence_score" not in prediction_columns:
@@ -59,6 +63,26 @@ def _ensure_sqlite_columns() -> None:
         appointment_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(appointments)"))}
         if "booking_context" not in appointment_columns:
             conn.execute(text("ALTER TABLE appointments ADD COLUMN booking_context JSON"))
+
+
+def _bootstrap_demo_environment() -> None:
+    if not settings.bootstrap_demo_data:
+        return
+
+    db = SessionLocal()
+    try:
+        if db.query(Appointment.id).first() is None:
+            seed_synthetic_history(db)
+
+        seed_known_patients(db)
+
+        model, _ = load_model_and_metadata()
+        if model is None:
+            train_and_persist_model(db)
+    except InsufficientTrainingDataError:
+        pass
+    finally:
+        db.close()
 
 
 def _prediction_to_response(prediction: Prediction) -> AppointmentPredictionResponse:
@@ -94,11 +118,7 @@ def _prediction_to_response(prediction: Prediction) -> AppointmentPredictionResp
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_columns()
-    db = SessionLocal()
-    try:
-        seed_known_patients(db)
-    finally:
-        db.close()
+    _bootstrap_demo_environment()
 
 
 @app.get("/")

@@ -60,6 +60,35 @@ uvicorn app.main:app --reload
 
 6. Open `http://127.0.0.1:8000`.
 
+## Deploy publicly with a cloud database
+
+This repo is now set up for Render so the site can be viewed publicly from desktop or mobile, backed by a managed Postgres database.
+
+### What is included
+
+- `render.yaml` provisions:
+  - a public Python web service for the FastAPI app
+  - a managed PostgreSQL database
+- `DATABASE_URL` automatically switches the app from local SQLite to Postgres
+- `BOOTSTRAP_DEMO_DATA=true` seeds demo data and trains a model automatically on first deploy
+
+### Deploy steps
+
+1. Create a Render account and connect your GitHub account.
+2. In Render, choose **New Blueprint Instance**.
+3. Select this repository.
+4. Render will detect `render.yaml` and create:
+   - the web service
+   - the managed Postgres database
+5. Wait for the first deploy to finish.
+6. Open the Render service URL. The UI is responsive and works on mobile browsers.
+
+### Environment notes
+
+- Local development still uses SQLite by default.
+- Render will inject the Postgres connection string into `DATABASE_URL`.
+- If you want an empty production environment later, set `BOOTSTRAP_DEMO_DATA=false` and remove the demo bootstrap endpoint from your workflow.
+
 ## Key API endpoints
 
 - `GET /v1/booking/patients/search?q=...`
