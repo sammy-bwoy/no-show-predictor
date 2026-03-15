@@ -142,8 +142,22 @@ class PatientMessagingPreferencesUpdate(BaseModel):
     preferred_channel: str = "auto"
 
 
+class AppointmentConfirmationDetails(BaseModel):
+    patient_name: str
+    provider_name: str
+    location_name: str
+    location_address: str
+    appointment_type: str
+    scheduled_at: datetime
+    duration_minutes: int
+    visit_instructions: str
+    directions_url: str
+    auto_notification_channel: str
+
+
 class BookingScheduleResponse(BaseModel):
     appointment_external_id: str
+    confirmation: AppointmentConfirmationDetails
     prediction: AppointmentPredictionResponse
 
 

@@ -33,6 +33,7 @@ from app.services.booking_flow import (
     build_background_confirm_request,
     get_patient,
     provider_week_availability,
+    save_appointment_level_details,
     search_patients,
     search_providers,
     update_patient_messaging_preferences,
@@ -149,8 +150,8 @@ def patient_search(q: str = Query(default="")) -> list[PatientSearchResult]:
 
 
 @app.get("/v1/booking/patients/{patient_id}", response_model=PatientQuickViewResponse)
-def patient_quickview(patient_id: str) -> PatientQuickViewResponse:
-    patient = get_patient(patient_id)
+def patient_quickview(patient_id: str, db: Session = Depends(get_db)) -> PatientQuickViewResponse:
+    patient = get_patient(patient_id, db=db)
     if patient is None:
         raise HTTPException(status_code=404, detail="Patient not found")
     return PatientQuickViewResponse(**patient)
@@ -160,8 +161,9 @@ def patient_quickview(patient_id: str) -> PatientQuickViewResponse:
 def patient_update_messaging(
     patient_id: str,
     payload: PatientMessagingPreferencesUpdate,
+    db: Session = Depends(get_db),
 ) -> PatientQuickViewResponse:
-    patient = update_patient_messaging_preferences(patient_id, payload.model_dump())
+    patient = update_patient_messaging_preferences(db, patient_id, payload.model_dump())
     if patient is None:
         raise HTTPException(status_code=404, detail="Patient not found")
     return PatientQuickViewResponse(**patient)
@@ -192,11 +194,17 @@ def booking_schedule(payload: BookingScheduleRequest, db: Session = Depends(get_
         expected = APPOINTMENT_TYPE_DEFAULT_DURATION[payload.appointment_type]
         payload.duration_minutes = expected
 
-    confirm_payload, booking_context = build_background_confirm_request(db, payload)
+    try:
+        confirm_payload, booking_context, confirmation = build_background_confirm_request(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     prediction = score_appointment(db, confirm_payload, booking_context=booking_context)
+    save_appointment_level_details(db, confirm_payload.appointment.external_id, confirmation)
+    db.commit()
 
     return BookingScheduleResponse(
         appointment_external_id=confirm_payload.appointment.external_id,
+        confirmation=confirmation,
         prediction=_prediction_to_response(prediction),
     )
 

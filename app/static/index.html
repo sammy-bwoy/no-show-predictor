@@ -464,9 +464,45 @@
     </div>
 
     <div class="card">
+      <div class="card-head">
+        <h2 style="margin:0">Appointment Confirmation Details</h2>
+      </div>
+      <div class="card-body">
+        <div class="quickview-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
+          <div class="qv-field"><div class="qv-label">Patient</div><div class="qv-value" id="cf-patient">-</div></div>
+          <div class="qv-field"><div class="qv-label">Provider</div><div class="qv-value" id="cf-provider">-</div></div>
+          <div class="qv-field"><div class="qv-label">Date & Time</div><div class="qv-value" id="cf-time">-</div></div>
+          <div class="qv-field"><div class="qv-label">Visit Type</div><div class="qv-value" id="cf-visit-type">-</div></div>
+          <div class="qv-field"><div class="qv-label">Duration</div><div class="qv-value" id="cf-duration">-</div></div>
+          <div class="qv-field"><div class="qv-label">Notification Channel</div><div class="qv-value" id="cf-channel">-</div></div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="qv-field" style="margin-bottom:8px">
+          <div class="qv-label">Clinic</div>
+          <div class="qv-value" id="cf-location-name">-</div>
+          <div class="qv-value" id="cf-address" style="color:#52697f;margin-top:4px">-</div>
+        </div>
+        <div class="qv-field">
+          <div class="qv-label">Instructions</div>
+          <div class="qv-value" id="cf-instructions">-</div>
+        </div>
+
+        <div class="mt16 flex" style="flex-wrap:wrap">
+          <button class="btn btn-primary" id="btn-print-confirm">Print Confirmation</button>
+          <button class="btn btn-plain" id="btn-share-confirm">Share Confirmation</button>
+          <a class="btn btn-outline" id="btn-directions" href="#" target="_blank" rel="noopener noreferrer">Directions</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 style="margin:0">No-Show Predictor</h2>
+      </div>
       <div class="card-body">
 
-        <div class="lbl" style="margin-bottom:10px">NO-SHOW PREDICTION</div>
+        <div class="lbl" style="margin-bottom:10px">Prediction Summary</div>
 
         <div id="risk-section">
           <div class="risk-bar-wrap"><div class="risk-bar" id="risk-bar"></div></div>
@@ -531,6 +567,7 @@ let selProvider = null;
 let selSlot = null;
 let lastPredId = null;
 let patientDetail = null;
+let lastConfirmation = null;
 
 const $ = id => document.getElementById(id);
 const show = id => $(id).classList.remove("hidden");
@@ -791,15 +828,40 @@ $("btn-schedule").onclick = async () => {
   if (!res.ok) { alert((await res.json()).detail || "Could not schedule."); return; }
   const body = await res.json();
   lastPredId = body.prediction.prediction_id;
-  renderConfirmation(payload, body.prediction);
+  lastConfirmation = body.confirmation || null;
+  renderConfirmation(payload, body.prediction, body.confirmation || null);
 };
 
-function renderConfirmation(payload, pred) {
+function renderConfirmation(payload, pred, confirmation) {
   hide("booking-flow");
   show("confirmation-screen");
 
   const al = payload.appointment_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   $("confirm-summary").textContent = selPatient.full_name + "  \u00b7  " + selProvider.full_name + "  \u00b7  " + al + "  \u00b7  " + fmtFull(selSlot);
+
+  const c = confirmation || {
+    patient_name: selPatient.full_name,
+    provider_name: selProvider.full_name,
+    scheduled_at: selSlot,
+    appointment_type: payload.appointment_type,
+    duration_minutes: payload.duration_minutes,
+    auto_notification_channel: "auto",
+    location_name: "Clinic",
+    location_address: "Address unavailable",
+    visit_instructions: "Please arrive 15 minutes early.",
+    directions_url: "#",
+  };
+
+  $("cf-patient").textContent = c.patient_name;
+  $("cf-provider").textContent = c.provider_name;
+  $("cf-time").textContent = fmtFull(c.scheduled_at);
+  $("cf-visit-type").textContent = c.appointment_type.replace(/_/g, " ").replace(/\b\w/g, x => x.toUpperCase());
+  $("cf-duration").textContent = c.duration_minutes + " min";
+  $("cf-channel").textContent = (c.auto_notification_channel || "auto").toUpperCase();
+  $("cf-location-name").textContent = c.location_name;
+  $("cf-address").textContent = c.location_address;
+  $("cf-instructions").textContent = c.visit_instructions;
+  $("btn-directions").href = c.directions_url || "#";
 
   hide("actions-section");
   $("wrong-check").checked = false;
@@ -858,6 +920,7 @@ $("btn-new-booking").onclick = () => {
   selProvider = null;
   selSlot = null;
   lastPredId = null;
+  lastConfirmation = null;
   patientDetail = null;
 
   show("booking-flow");
@@ -870,6 +933,38 @@ $("btn-new-booking").onclick = () => {
   $("prefs-status").textContent = "";
   resetProviderSection(null);
   $("btn-schedule").disabled = true;
+};
+
+$("btn-print-confirm").onclick = () => {
+  window.print();
+};
+
+$("btn-share-confirm").onclick = async () => {
+  if (!lastConfirmation) return;
+  const text = [
+    "Appointment Confirmation",
+    "Patient: " + lastConfirmation.patient_name,
+    "Provider: " + lastConfirmation.provider_name,
+    "When: " + fmtFull(lastConfirmation.scheduled_at),
+    "Where: " + lastConfirmation.location_name + ", " + lastConfirmation.location_address,
+    "Directions: " + (lastConfirmation.directions_url || ""),
+  ].join("\n");
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "Appointment Confirmation", text });
+      return;
+    } catch (e) {
+      // Ignore and fallback.
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    alert("Confirmation copied. You can paste and share it.");
+  } catch (e) {
+    alert(text);
+  }
 };
 
 updateType();

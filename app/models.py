@@ -17,6 +17,10 @@ class Patient(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     appointments: Mapped[list["Appointment"]] = relationship(back_populates="patient")
+    behavior_profile: Mapped["PatientBehaviorProfile | None"] = relationship(back_populates="patient")
+    internet_activity_events: Mapped[list["InternetActivityEvent"]] = relationship(back_populates="patient")
+    notification_preference: Mapped["PatientNotificationPreference | None"] = relationship(back_populates="patient")
+    notification_events: Mapped[list["PatientNotificationEvent"]] = relationship(back_populates="patient")
 
 
 class Provider(Base):
@@ -72,6 +76,7 @@ class Appointment(Base):
     patient: Mapped[Patient] = relationship(back_populates="appointments")
     provider: Mapped[Provider] = relationship(back_populates="appointments")
     predictions: Mapped[list["Prediction"]] = relationship(back_populates="appointment")
+    appointment_detail: Mapped["AppointmentLevelDetail | None"] = relationship(back_populates="appointment")
 
 
 class Prediction(Base):
@@ -110,3 +115,77 @@ class PredictionFeedback(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     prediction: Mapped[Prediction] = relationship(back_populates="feedback_items")
+
+
+class PatientBehaviorProfile(Base):
+    __tablename__ = "patient_behavior_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), unique=True, index=True)
+    avg_weekly_web_sessions: Mapped[float] = mapped_column(Float, default=2.0)
+    avg_weekly_portal_sessions: Mapped[float] = mapped_column(Float, default=1.0)
+    avg_daily_mobile_minutes: Mapped[float] = mapped_column(Float, default=10.0)
+    no_show_risk_behavior_score: Mapped[float] = mapped_column(Float, default=0.40)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    patient: Mapped[Patient] = relationship(back_populates="behavior_profile")
+
+
+class InternetActivityEvent(Base):
+    __tablename__ = "internet_activity_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    activity_type: Mapped[str] = mapped_column(String(64), default="portal_login")
+    channel: Mapped[str] = mapped_column(String(32), default="portal")
+    duration_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    event_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    patient: Mapped[Patient] = relationship(back_populates="internet_activity_events")
+
+
+class PatientNotificationPreference(Base):
+    __tablename__ = "patient_notification_preferences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), unique=True, index=True)
+    allow_sms: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_email: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_phone: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_portal: Mapped[bool] = mapped_column(Boolean, default=True)
+    preferred_channel: Mapped[str] = mapped_column(String(32), default="auto")
+    updated_by: Mapped[str] = mapped_column(String(64), default="system")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    patient: Mapped[Patient] = relationship(back_populates="notification_preference")
+
+
+class PatientNotificationEvent(Base):
+    __tablename__ = "patient_notification_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id"), nullable=True, index=True)
+    channel: Mapped[str] = mapped_column(String(32), default="sms")
+    event_type: Mapped[str] = mapped_column(String(32), default="sent")
+    delivered: Mapped[bool] = mapped_column(Boolean, default=True)
+    responded: Mapped[bool] = mapped_column(Boolean, default=False)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    patient: Mapped[Patient] = relationship(back_populates="notification_events")
+
+
+class AppointmentLevelDetail(Base):
+    __tablename__ = "appointment_level_details"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    appointment_id: Mapped[int] = mapped_column(ForeignKey("appointments.id"), unique=True, index=True)
+    location_name: Mapped[str] = mapped_column(String(128), default="Clinic")
+    location_address: Mapped[str] = mapped_column(String(255), default="")
+    visit_instructions: Mapped[str] = mapped_column(String(1000), default="")
+    directions_url: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    appointment: Mapped[Appointment] = relationship(back_populates="appointment_detail")

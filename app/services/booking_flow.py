@@ -4,13 +4,59 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from app.models import (
+    Appointment,
+    AppointmentLevelDetail,
+    InternetActivityEvent,
+    Patient,
+    PatientBehaviorProfile,
+    PatientNotificationEvent,
+    PatientNotificationPreference,
+    Provider,
+)
 from app.schemas import AppointmentConfirmRequest, AppointmentContext, BookingScheduleRequest, PatientSnapshot, ProviderSnapshot
 
 PROVIDER_DIRECTORY = [
-    {"provider_id": "prov-201", "full_name": "Dr. Maya Ellis", "specialty": "primary_care", "location_name": "Downtown Clinic", "latitude": 40.7128, "longitude": -74.0060},
-    {"provider_id": "prov-202", "full_name": "Dr. Noah Patel", "specialty": "cardiology", "location_name": "Riverside Health", "latitude": 40.7399, "longitude": -73.9946},
-    {"provider_id": "prov-203", "full_name": "Dr. Ava Kim", "specialty": "dermatology", "location_name": "Midtown Medical", "latitude": 40.7549, "longitude": -73.9840},
-    {"provider_id": "prov-204", "full_name": "Dr. Lucas Green", "specialty": "orthopedics", "location_name": "Union Care Center", "latitude": 40.7359, "longitude": -73.9911},
+    {
+        "provider_id": "prov-201",
+        "full_name": "Dr. Maya Ellis",
+        "specialty": "primary_care",
+        "location_name": "Downtown Clinic",
+        "location_address": "210 Hudson St, New York, NY 10013",
+        "visit_instructions": "Bring insurance card and photo ID. Arrive 15 minutes early for check-in.",
+        "latitude": 40.7128,
+        "longitude": -74.0060,
+    },
+    {
+        "provider_id": "prov-202",
+        "full_name": "Dr. Noah Patel",
+        "specialty": "cardiology",
+        "location_name": "Riverside Health",
+        "location_address": "480 Riverside Dr, New York, NY 10027",
+        "visit_instructions": "Avoid caffeine for 4 hours before your visit unless instructed otherwise.",
+        "latitude": 40.7399,
+        "longitude": -73.9946,
+    },
+    {
+        "provider_id": "prov-203",
+        "full_name": "Dr. Ava Kim",
+        "specialty": "dermatology",
+        "location_name": "Midtown Medical",
+        "location_address": "55 W 47th St, New York, NY 10036",
+        "visit_instructions": "Please avoid heavy makeup or topical products on treatment area.",
+        "latitude": 40.7549,
+        "longitude": -73.9840,
+    },
+    {
+        "provider_id": "prov-204",
+        "full_name": "Dr. Lucas Green",
+        "specialty": "orthopedics",
+        "location_name": "Union Care Center",
+        "location_address": "120 E 14th St, New York, NY 10003",
+        "visit_instructions": "Bring prior scans/reports and wear comfortable clothing.",
+        "latitude": 40.7359,
+        "longitude": -73.9911,
+    },
 ]
 
 APPOINTMENT_TYPE_DEFAULT_DURATION = {
@@ -231,22 +277,63 @@ def search_patients(query: str, limit: int = 40) -> list[dict]:
     return matches[:limit]
 
 
-def get_patient(patient_id: str) -> dict | None:
-    return PATIENT_BY_ID.get(patient_id)
-
-
-def update_patient_messaging_preferences(patient_id: str, preferences: dict) -> dict | None:
-    patient = get_patient(patient_id)
+def _override_preferences_from_db(profile: dict, db: Session) -> dict:
+    patient = db.query(Patient).filter(Patient.external_id == profile["patient_id"]).first()
     if patient is None:
+        return profile
+
+    pref = db.query(PatientNotificationPreference).filter(PatientNotificationPreference.patient_id == patient.id).first()
+    if pref is None:
+        return profile
+
+    profile = {**profile}
+    profile["messaging_preferences"] = {
+        "allow_sms": pref.allow_sms,
+        "allow_email": pref.allow_email,
+        "allow_phone": pref.allow_phone,
+        "allow_portal": pref.allow_portal,
+        "preferred_channel": pref.preferred_channel,
+    }
+    return profile
+
+
+def get_patient(patient_id: str, db: Session | None = None) -> dict | None:
+    profile = PATIENT_BY_ID.get(patient_id)
+    if profile is None:
+        return None
+    if db is None:
+        return profile
+    return _override_preferences_from_db(profile, db)
+
+
+def update_patient_messaging_preferences(db: Session, patient_id: str, preferences: dict) -> dict | None:
+    profile = PATIENT_BY_ID.get(patient_id)
+    if profile is None:
         return None
 
-    current = patient["messaging_preferences"]
+    current = profile["messaging_preferences"]
     current["allow_sms"] = bool(preferences["allow_sms"])
     current["allow_email"] = bool(preferences["allow_email"])
     current["allow_phone"] = bool(preferences["allow_phone"])
     current["allow_portal"] = bool(preferences["allow_portal"])
     current["preferred_channel"] = preferences["preferred_channel"]
-    return patient
+
+    patient = db.query(Patient).filter(Patient.external_id == patient_id).first()
+    if patient is not None:
+        pref = db.query(PatientNotificationPreference).filter(PatientNotificationPreference.patient_id == patient.id).first()
+        if pref is None:
+            pref = PatientNotificationPreference(patient_id=patient.id)
+            db.add(pref)
+        pref.allow_sms = current["allow_sms"]
+        pref.allow_email = current["allow_email"]
+        pref.allow_phone = current["allow_phone"]
+        pref.allow_portal = current["allow_portal"]
+        pref.preferred_channel = current["preferred_channel"]
+        pref.updated_by = "practice_user"
+        pref.updated_at = datetime.utcnow()
+        db.commit()
+
+    return profile
 
 
 def search_providers(query: str) -> list[dict]:
@@ -286,8 +373,6 @@ def provider_week_availability(db: Session, provider_external_id: str, week_star
 
     end = business_days[-1] + timedelta(days=1)
 
-    from app.models import Appointment, Provider
-
     provider = db.query(Provider).filter(Provider.external_id == provider_external_id).first()
     busy_keys: set[str] = set()
     if provider is not None:
@@ -321,11 +406,177 @@ def provider_week_availability(db: Session, provider_external_id: str, week_star
     return days
 
 
-def determine_best_reminder_channel(patient_profile: dict | None) -> str:
-    if patient_profile is None:
-        return "sms"
+def _is_designated_new_patient(patient_id: str) -> bool:
+    if patient_id == "pat-1005":
+        return True
+    try:
+        n = int(patient_id.split("-")[-1])
+        return n % 23 == 0
+    except ValueError:
+        return False
 
-    prefs = patient_profile["messaging_preferences"]
+
+def _ensure_provider_row(db: Session, provider_profile: dict) -> Provider:
+    provider = db.query(Provider).filter(Provider.external_id == provider_profile["provider_id"]).first()
+    if provider is None:
+        provider = Provider(
+            external_id=provider_profile["provider_id"],
+            specialty=provider_profile["specialty"],
+            latitude=provider_profile["latitude"],
+            longitude=provider_profile["longitude"],
+        )
+        db.add(provider)
+        db.flush()
+    return provider
+
+
+def _ensure_patient_row(db: Session, patient_profile: dict) -> Patient:
+    patient = db.query(Patient).filter(Patient.external_id == patient_profile["patient_id"]).first()
+    if patient is None:
+        patient = Patient(
+            external_id=patient_profile["patient_id"],
+            zip_code="10001" if patient_profile["country"] == "USA" else "400001",
+        )
+        db.add(patient)
+        db.flush()
+    return patient
+
+
+def _seed_behavior_tables_if_needed(
+    db: Session,
+    patient: Patient,
+    patient_profile: dict,
+    primary_provider: Provider,
+    scheduled_at: datetime,
+) -> None:
+    rng = random.Random(abs(hash(patient.external_id)) % (2**31))
+    engagement = patient_profile["engagement"]
+
+    behavior_profile = db.query(PatientBehaviorProfile).filter(PatientBehaviorProfile.patient_id == patient.id).first()
+    if behavior_profile is None:
+        behavior_profile = PatientBehaviorProfile(
+            patient_id=patient.id,
+            avg_weekly_web_sessions=round(engagement["email_rate"] * 10 + engagement["portal_rate"] * 8, 2),
+            avg_weekly_portal_sessions=round(engagement["portal_rate"] * 12, 2),
+            avg_daily_mobile_minutes=round(engagement["sms_rate"] * 18 + engagement["phone_rate"] * 8, 2),
+            no_show_risk_behavior_score=round(max(0.05, 1 - (engagement["sms_rate"] + engagement["email_rate"]) / 2), 2),
+        )
+        db.add(behavior_profile)
+
+    pref = db.query(PatientNotificationPreference).filter(PatientNotificationPreference.patient_id == patient.id).first()
+    if pref is None:
+        pref_src = patient_profile["messaging_preferences"]
+        pref = PatientNotificationPreference(
+            patient_id=patient.id,
+            allow_sms=pref_src["allow_sms"],
+            allow_email=pref_src["allow_email"],
+            allow_phone=pref_src["allow_phone"],
+            allow_portal=pref_src["allow_portal"],
+            preferred_channel=pref_src["preferred_channel"],
+            updated_by="bootstrap",
+            updated_at=datetime.utcnow(),
+        )
+        db.add(pref)
+
+    existing_activity = db.query(InternetActivityEvent).filter(InternetActivityEvent.patient_id == patient.id).count()
+    if existing_activity == 0:
+        for i in range(24):
+            days_ago = rng.randint(3, 120)
+            ev_time = datetime.utcnow() - timedelta(days=days_ago, hours=rng.randint(0, 23))
+            activity_type = rng.choice(["portal_login", "portal_message", "education_view", "billing_view"]) 
+            db.add(
+                InternetActivityEvent(
+                    patient_id=patient.id,
+                    activity_type=activity_type,
+                    channel="portal" if "portal" in activity_type else "web",
+                    duration_seconds=rng.randint(30, 1200),
+                    event_at=ev_time,
+                    metadata_json={"source": "demo_seed"},
+                )
+            )
+
+    prior_count = (
+        db.query(Appointment)
+        .filter(Appointment.patient_id == patient.id)
+        .filter(Appointment.scheduled_at < scheduled_at)
+        .count()
+    )
+
+    if prior_count == 0 and not _is_designated_new_patient(patient.external_id):
+        n_history = rng.randint(6, 18)
+        no_show_ratio = max(0.05, min(0.55, 1 - ((engagement["sms_rate"] + engagement["email_rate"] + engagement["portal_rate"]) / 3)))
+        no_show_target = int(round(n_history * no_show_ratio))
+
+        outcomes = [False] * no_show_target + [True] * (n_history - no_show_target)
+        rng.shuffle(outcomes)
+
+        channels = ["sms", "email", "phone", "portal"]
+        for i, attended in enumerate(outcomes):
+            hist_sched = scheduled_at - timedelta(days=rng.randint(15 + i * 20, 45 + i * 35))
+            hist_sched = hist_sched.replace(hour=rng.choice([8, 9, 10, 11, 14, 15]), minute=0, second=0, microsecond=0)
+            hist_booked = hist_sched - timedelta(days=rng.randint(2, 20))
+            reminder_channel = channels[i % len(channels)]
+            prior_no_show = sum(1 for x in outcomes[:i] if not x)
+
+            appt = Appointment(
+                external_id=f"hist2-{patient.external_id}-{i}",
+                patient_id=patient.id,
+                provider_id=primary_provider.id,
+                appointment_type=rng.choice(["follow_up", "sick_visit", "annual_wellness"]),
+                is_new_patient=(i == 0),
+                is_telehealth=False,
+                specialty=primary_provider.specialty,
+                confirmation_channel=reminder_channel,
+                weather_code=rng.choice(["clear", "cloudy", "rain"]),
+                weather_temp_f=rng.uniform(58, 88),
+                distance_miles=rng.uniform(0.8, 17.5),
+                lead_time_hours=max((hist_sched - hist_booked).total_seconds() / 3600.0, 0.0),
+                day_of_week=hist_sched.weekday(),
+                hour_of_day=hist_sched.hour,
+                prior_total_appts=i,
+                prior_no_show_count=prior_no_show,
+                prior_portal_logins_30d=rng.randint(0, 12),
+                prior_reminder_response_rate=max(0.1, min(0.95, engagement["sms_rate"] - (prior_no_show / max(i, 1)) * 0.25 if i > 0 else engagement["sms_rate"])),
+                digital_engagement_score=max(0.1, min(0.95, engagement["portal_rate"] + engagement["email_rate"] / 2)),
+                provider_no_show_rate=0.12,
+                status="completed" if attended else "no_show",
+                label_attended=attended,
+                booked_at=hist_booked,
+                scheduled_at=hist_sched,
+            )
+            db.add(appt)
+            db.flush()
+
+            db.add(
+                PatientNotificationEvent(
+                    patient_id=patient.id,
+                    appointment_id=appt.id,
+                    channel=reminder_channel,
+                    event_type="sent",
+                    delivered=True,
+                    responded=attended and rng.random() < 0.7,
+                    sent_at=hist_booked + timedelta(hours=2),
+                )
+            )
+
+
+def determine_best_reminder_channel(patient_profile: dict, db: Session) -> str:
+    patient = db.query(Patient).filter(Patient.external_id == patient_profile["patient_id"]).first()
+    db_pref = None
+    if patient is not None:
+        db_pref = db.query(PatientNotificationPreference).filter(PatientNotificationPreference.patient_id == patient.id).first()
+
+    if db_pref is not None:
+        prefs = {
+            "allow_sms": db_pref.allow_sms,
+            "allow_email": db_pref.allow_email,
+            "allow_phone": db_pref.allow_phone,
+            "allow_portal": db_pref.allow_portal,
+            "preferred_channel": db_pref.preferred_channel,
+        }
+    else:
+        prefs = patient_profile["messaging_preferences"]
+
     rates = patient_profile["engagement"]
 
     allowed = {
@@ -336,10 +587,15 @@ def determine_best_reminder_channel(patient_profile: dict | None) -> str:
     }
 
     preferred = prefs.get("preferred_channel", "auto")
-    if preferred in allowed and allowed[preferred]:
+    if preferred in allowed and preferred != "auto" and allowed[preferred]:
         return preferred
 
-    candidates = [("sms", rates.get("sms_rate", 0.0)), ("email", rates.get("email_rate", 0.0)), ("phone", rates.get("phone_rate", 0.0)), ("portal", rates.get("portal_rate", 0.0))]
+    candidates = [
+        ("sms", rates.get("sms_rate", 0.0)),
+        ("email", rates.get("email_rate", 0.0)),
+        ("phone", rates.get("phone_rate", 0.0)),
+        ("portal", rates.get("portal_rate", 0.0)),
+    ]
     candidates = [pair for pair in candidates if allowed.get(pair[0], False)]
     if not candidates:
         return "sms"
@@ -347,65 +603,113 @@ def determine_best_reminder_channel(patient_profile: dict | None) -> str:
     return candidates[0][0]
 
 
-def build_background_confirm_request(db: Session, booking: BookingScheduleRequest) -> tuple[AppointmentConfirmRequest, dict]:
-    from app.models import Appointment, Patient, Provider
+def _directions_url(address: str) -> str:
+    query = address.replace(" ", "+")
+    return f"https://www.google.com/maps/search/?api=1&query={query}"
 
+
+def build_confirmation_details(
+    patient_profile: dict,
+    provider_profile: dict,
+    scheduled_at: datetime,
+    appointment_type: str,
+    duration_minutes: int,
+    channel: str,
+) -> dict:
+    return {
+        "patient_name": patient_profile["full_name"],
+        "provider_name": provider_profile["full_name"],
+        "location_name": provider_profile["location_name"],
+        "location_address": provider_profile["location_address"],
+        "appointment_type": appointment_type,
+        "scheduled_at": scheduled_at,
+        "duration_minutes": duration_minutes,
+        "visit_instructions": provider_profile["visit_instructions"],
+        "directions_url": _directions_url(provider_profile["location_address"]),
+        "auto_notification_channel": channel,
+    }
+
+
+def save_appointment_level_details(db: Session, appointment_external_id: str, details: dict) -> None:
+    appointment = db.query(Appointment).filter(Appointment.external_id == appointment_external_id).first()
+    if appointment is None:
+        return
+
+    row = db.query(AppointmentLevelDetail).filter(AppointmentLevelDetail.appointment_id == appointment.id).first()
+    if row is None:
+        row = AppointmentLevelDetail(appointment_id=appointment.id)
+        db.add(row)
+
+    row.location_name = details["location_name"]
+    row.location_address = details["location_address"]
+    row.visit_instructions = details["visit_instructions"]
+    row.directions_url = details["directions_url"]
+    db.flush()
+
+
+def build_background_confirm_request(db: Session, booking: BookingScheduleRequest) -> tuple[AppointmentConfirmRequest, dict, dict]:
     provider_profile = get_provider(booking.provider_id)
-    patient_profile = get_patient(booking.patient_id)
-
-    patient = db.query(Patient).filter(Patient.external_id == booking.patient_id).first()
-    provider = db.query(Provider).filter(Provider.external_id == booking.provider_id).first()
+    patient_profile = get_patient(booking.patient_id, db=db)
+    if patient_profile is None:
+        raise ValueError(f"Unknown patient: {booking.patient_id}")
+    if provider_profile is None:
+        raise ValueError(f"Unknown provider: {booking.provider_id}")
 
     scheduled_at = booking.scheduled_at
     if scheduled_at.tzinfo is not None:
         scheduled_at = scheduled_at.astimezone(timezone.utc).replace(tzinfo=None)
 
-    prior_rows = []
-    if patient is not None:
-        prior_rows = (
-            db.query(Appointment)
-            .filter(Appointment.patient_id == patient.id)
-            .filter(Appointment.scheduled_at < scheduled_at)
-            .all()
-        )
+    patient = _ensure_patient_row(db, patient_profile)
+    provider = _ensure_provider_row(db, provider_profile)
+    _seed_behavior_tables_if_needed(db, patient, patient_profile, provider, scheduled_at)
+
+    prior_rows = (
+        db.query(Appointment)
+        .filter(Appointment.patient_id == patient.id)
+        .filter(Appointment.scheduled_at < scheduled_at)
+        .all()
+    )
 
     prior_total = len(prior_rows)
     prior_no_show = len([row for row in prior_rows if row.status == "no_show" or row.label_attended is False])
     prior_no_show_rate = (prior_no_show / prior_total) if prior_total > 0 else 0.0
 
-    provider_rows = []
-    if provider is not None:
-        provider_rows = (
-            db.query(Appointment)
-            .filter(Appointment.provider_id == provider.id)
-            .filter(Appointment.label_attended.isnot(None))
-            .all()
-        )
-
+    provider_rows = (
+        db.query(Appointment)
+        .filter(Appointment.provider_id == provider.id)
+        .filter(Appointment.label_attended.isnot(None))
+        .all()
+    )
     provider_no_show_rate = 0.12
     if provider_rows:
         provider_no_show_rate = len([row for row in provider_rows if row.label_attended is False]) / len(provider_rows)
 
-    profile_engagement = patient_profile["engagement"] if patient_profile else {}
-    synthetic_portal_logins = max(0, min(12, prior_total // 2))
-    synthetic_reminder_response = max(0.05, min(0.95, profile_engagement.get("sms_rate", 0.70) - (prior_no_show_rate * 0.35)))
-    synthetic_digital_engagement = max(0.05, min(0.95, profile_engagement.get("portal_rate", 0.65) - (prior_no_show_rate * 0.30)))
+    behavior = db.query(PatientBehaviorProfile).filter(PatientBehaviorProfile.patient_id == patient.id).first()
+    if behavior is None:
+        profile_engagement = patient_profile["engagement"]
+        synthetic_portal_logins = max(0, min(12, prior_total // 2))
+        synthetic_reminder_response = max(0.05, min(0.95, profile_engagement.get("sms_rate", 0.70) - (prior_no_show_rate * 0.35)))
+        synthetic_digital_engagement = max(0.05, min(0.95, profile_engagement.get("portal_rate", 0.65) - (prior_no_show_rate * 0.30)))
+    else:
+        synthetic_portal_logins = int(round(min(20, behavior.avg_weekly_portal_sessions * 1.6)))
+        synthetic_reminder_response = max(0.05, min(0.95, 0.85 - (behavior.no_show_risk_behavior_score * 0.55)))
+        synthetic_digital_engagement = max(0.05, min(0.95, (behavior.avg_weekly_web_sessions / 12)))
 
     appointment_type = booking.appointment_type
-    is_new_patient = appointment_type == "new_patient" or prior_total == 0
+    is_new_patient = appointment_type == "new_patient" or _is_designated_new_patient(patient.external_id) or prior_total == 0
     is_telehealth = appointment_type == "telehealth"
     default_distance = 0.0 if is_telehealth else 6.5
 
     booked_at = datetime.utcnow()
     appointment_external_id = f"appt-{uuid4().hex[:12]}"
-    confirmation_channel = determine_best_reminder_channel(patient_profile)
+    confirmation_channel = determine_best_reminder_channel(patient_profile, db)
 
     payload = AppointmentConfirmRequest(
         patient=PatientSnapshot(
             external_id=booking.patient_id,
-            zip_code=patient.zip_code if patient else None,
-            latitude=patient.latitude if patient else None,
-            longitude=patient.longitude if patient else None,
+            zip_code=patient.zip_code,
+            latitude=patient.latitude,
+            longitude=patient.longitude,
             prior_total_appts=prior_total,
             prior_no_show_count=prior_no_show,
             prior_portal_logins_30d=synthetic_portal_logins,
@@ -414,9 +718,9 @@ def build_background_confirm_request(db: Session, booking: BookingScheduleReques
         ),
         provider=ProviderSnapshot(
             external_id=booking.provider_id,
-            specialty=provider_profile["specialty"] if provider_profile else "general",
-            latitude=provider.latitude if provider else (provider_profile["latitude"] if provider_profile else None),
-            longitude=provider.longitude if provider else (provider_profile["longitude"] if provider_profile else None),
+            specialty=provider_profile["specialty"],
+            latitude=provider.latitude,
+            longitude=provider.longitude,
             provider_no_show_rate=provider_no_show_rate,
         ),
         appointment=AppointmentContext(
@@ -450,4 +754,13 @@ def build_background_confirm_request(db: Session, booking: BookingScheduleReques
         "duration_minutes": booking.duration_minutes,
     }
 
-    return payload, context
+    confirmation = build_confirmation_details(
+        patient_profile=patient_profile,
+        provider_profile=provider_profile,
+        scheduled_at=scheduled_at,
+        appointment_type=appointment_type,
+        duration_minutes=booking.duration_minutes,
+        channel=confirmation_channel,
+    )
+
+    return payload, context, confirmation
