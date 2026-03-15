@@ -20,6 +20,8 @@ from app.schemas import (
     BookingScheduleResponse,
     FeedbackRequest,
     OutcomeLabelRequest,
+    PatientMessagingPreferencesUpdate,
+    PatientQuickViewResponse,
     PatientSearchResult,
     ProviderDayAvailability,
     ProviderSearchResult,
@@ -29,9 +31,11 @@ from app.services.actions import confidence_label
 from app.services.booking_flow import (
     APPOINTMENT_TYPE_DEFAULT_DURATION,
     build_background_confirm_request,
+    get_patient,
     provider_week_availability,
     search_patients,
     search_providers,
+    update_patient_messaging_preferences,
 )
 from app.services.scoring import score_appointment
 
@@ -142,6 +146,25 @@ def confirm_appointment(payload: AppointmentConfirmRequest, db: Session = Depend
 def patient_search(q: str = Query(default="")) -> list[PatientSearchResult]:
     results = search_patients(q)
     return [PatientSearchResult(**row) for row in results]
+
+
+@app.get("/v1/booking/patients/{patient_id}", response_model=PatientQuickViewResponse)
+def patient_quickview(patient_id: str) -> PatientQuickViewResponse:
+    patient = get_patient(patient_id)
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return PatientQuickViewResponse(**patient)
+
+
+@app.put("/v1/booking/patients/{patient_id}/messaging-preferences", response_model=PatientQuickViewResponse)
+def patient_update_messaging(
+    patient_id: str,
+    payload: PatientMessagingPreferencesUpdate,
+) -> PatientQuickViewResponse:
+    patient = update_patient_messaging_preferences(patient_id, payload.model_dump())
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return PatientQuickViewResponse(**patient)
 
 
 @app.get("/v1/booking/providers/search", response_model=list[ProviderSearchResult])

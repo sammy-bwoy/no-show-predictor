@@ -121,7 +121,49 @@
     .rec-card .rp-name { font-weight: 600; font-size: 14px; }
     .rec-card .rp-meta { font-size: 12px; color: #6b7a8a; margin-top: 2px; }
 
-    .avail-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 12px; }
+    .quickview {
+      margin-top: 12px;
+      background: #f9fbfd;
+      border: 1px solid #dce4ed;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .quickview h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: #46627a;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .quickview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+    }
+    .qv-field {
+      border: 1px solid #e8edf3;
+      border-radius: 8px;
+      padding: 7px 9px;
+      background: #fff;
+    }
+    .qv-label { font-size: 11px; color: #7a8b9c; text-transform: uppercase; }
+    .qv-value { font-size: 13px; margin-top: 2px; color: #1a2733; }
+
+    .prefs-grid {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    .pref-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #2a3d4f;
+    }
+
+    .avail-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 12px; }
     .avail-day-head {
       font-size: 10px; font-weight: 700; color: #8797a5;
       text-transform: uppercase; margin-bottom: 5px; line-height: 1.4;
@@ -210,6 +252,43 @@
             </div>
             <button class="btn btn-ghost" id="btn-change-patient">Change</button>
           </div>
+
+          <div class="quickview" id="patient-quickview">
+            <h3>Patient Quick View</h3>
+            <div class="quickview-grid">
+              <div class="qv-field"><div class="qv-label">DOB</div><div class="qv-value" id="qv-dob">-</div></div>
+              <div class="qv-field"><div class="qv-label">Sex</div><div class="qv-value" id="qv-sex">-</div></div>
+              <div class="qv-field"><div class="qv-label">Country</div><div class="qv-value" id="qv-country">-</div></div>
+              <div class="qv-field"><div class="qv-label">City</div><div class="qv-value" id="qv-city">-</div></div>
+              <div class="qv-field"><div class="qv-label">Phone</div><div class="qv-value" id="qv-phone">-</div></div>
+              <div class="qv-field"><div class="qv-label">Email</div><div class="qv-value" id="qv-email">-</div></div>
+              <div class="qv-field"><div class="qv-label">Insurance</div><div class="qv-value" id="qv-insurance">-</div></div>
+              <div class="qv-field"><div class="qv-label">Member ID</div><div class="qv-value" id="qv-member">-</div></div>
+            </div>
+
+            <div class="divider" style="margin:10px 0"></div>
+            <div class="qv-label" style="margin-bottom:4px">Messaging Preferences</div>
+            <div class="prefs-grid">
+              <label class="pref-item"><input type="checkbox" id="pref-sms" /> SMS</label>
+              <label class="pref-item"><input type="checkbox" id="pref-email" /> Email</label>
+              <label class="pref-item"><input type="checkbox" id="pref-phone" /> Phone</label>
+              <label class="pref-item"><input type="checkbox" id="pref-portal" /> Portal</label>
+              <div>
+                <span class="qv-label">Preferred</span>
+                <select id="pref-preferred">
+                  <option value="auto">Auto</option>
+                  <option value="sms">SMS</option>
+                  <option value="email">Email</option>
+                  <option value="phone">Phone</option>
+                  <option value="portal">Portal</option>
+                </select>
+              </div>
+            </div>
+            <div class="mt8 flex">
+              <button class="btn btn-plain" id="btn-save-prefs">Save Preferences</button>
+              <span class="muted" id="prefs-status"></span>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -251,7 +330,7 @@
           <div class="divider"></div>
           <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:6px">
             <span style="font-weight:600;font-size:13px" id="avail-label"></span>
-            <span class="muted">7 days from today &nbsp;&middot;&nbsp; 30-min slots</span>
+            <span class="muted">5 business days (Mon-Fri) &nbsp;&middot;&nbsp; 30-min slots</span>
           </div>
           <div class="avail-grid" id="avail-grid"></div>
           <p id="slot-label" class="muted mt8 hidden"></p>
@@ -346,21 +425,16 @@
 
         <div class="fg">
           <div>
-            <span class="lbl">Reminder Channel</span>
-            <select id="reminder">
-              <option value="sms">SMS</option>
-              <option value="email">Email</option>
-              <option value="phone">Phone Call</option>
-              <option value="portal">Patient Portal</option>
-            </select>
-          </div>
-          <div>
             <span class="lbl">Contact Name</span>
             <input id="contact-name" placeholder="Optional emergency contact" />
           </div>
           <div>
             <span class="lbl">Contact Phone</span>
             <input id="contact-phone" placeholder="Optional" />
+          </div>
+          <div>
+            <span class="lbl">Reminder Channel</span>
+            <input value="Automatically selected from patient messaging engagement" readonly />
           </div>
         </div>
 
@@ -452,28 +526,64 @@ const BAR_W   = { high:80, medium:52, low:24, not_enough_data:40 };
 const BAR_COL = { high:"#bb2f2f", medium:"#c97318", low:"#1a8f4e", not_enough_data:"#8797a5" };
 const CHIP_CL = { high:"chip-high", medium:"chip-medium", low:"chip-low", not_enough_data:"chip-not_enough_data" };
 
-let selPatient  = null;
+let selPatient = null;
 let selProvider = null;
-let selSlot     = null;
-let lastPredId  = null;
+let selSlot = null;
+let lastPredId = null;
+let patientDetail = null;
 
-const $    = id => document.getElementById(id);
+const $ = id => document.getElementById(id);
 const show = id => $(id).classList.remove("hidden");
 const hide = id => $(id).classList.add("hidden");
 const bval = id => $(id).value === "true";
 
-function initials(name) { return name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
-function fmtTime(iso)   { return new Date(iso).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); }
-function fmtFull(iso)   { return new Date(iso).toLocaleString([],{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}); }
-function checkReady()   { $("btn-schedule").disabled = !(selPatient && selProvider && selSlot); }
+function initials(name) { return name.split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase(); }
+function fmtTime(iso) { return new Date(iso).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); }
+function fmtFull(iso) { return new Date(iso).toLocaleString([], {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}); }
+function checkReady() { $("btn-schedule").disabled = !(selPatient && selProvider && selSlot); }
+
+function setQuickView(data) {
+  patientDetail = data;
+  $("qv-dob").textContent = data.date_of_birth;
+  $("qv-sex").textContent = data.sex;
+  $("qv-country").textContent = data.country;
+  $("qv-city").textContent = data.city + ", " + data.state;
+  $("qv-phone").textContent = data.phone;
+  $("qv-email").textContent = data.email;
+  $("qv-insurance").textContent = [data.insurance_payer, data.insurance_plan].filter(Boolean).join(" - ") || "-";
+  $("qv-member").textContent = data.member_id || "-";
+
+  $("pref-sms").checked = !!data.messaging_preferences.allow_sms;
+  $("pref-email").checked = !!data.messaging_preferences.allow_email;
+  $("pref-phone").checked = !!data.messaging_preferences.allow_phone;
+  $("pref-portal").checked = !!data.messaging_preferences.allow_portal;
+  $("pref-preferred").value = data.messaging_preferences.preferred_channel || "auto";
+
+  $("payer").value = data.insurance_payer || "";
+  $("plan").value = data.insurance_plan || "";
+  $("member-id").value = data.member_id || "";
+  $("contact-phone").value = data.phone || "";
+}
+
+async function loadPatientQuickView(patientId) {
+  const res = await fetch("/v1/booking/patients/" + encodeURIComponent(patientId));
+  if (!res.ok) {
+    patientDetail = null;
+    return;
+  }
+  const data = await res.json();
+  setQuickView(data);
+}
 
 async function searchPatients() {
   const q = $("patient-q").value.trim();
   if (!q) { alert("Please enter a patient name or ID to search."); return; }
-  const rows = await fetch("/v1/booking/patients/search?q="+encodeURIComponent(q)).then(r=>r.json());
+
+  const rows = await fetch("/v1/booking/patients/search?q=" + encodeURIComponent(q)).then(r => r.json());
   const list = $("patient-results");
   list.innerHTML = "";
   if (!rows.length) { list.innerHTML = '<p class="muted">No patients found.</p>'; return; }
+
   rows.forEach(p => {
     const el = document.createElement("div");
     el.className = "result-item";
@@ -483,88 +593,152 @@ async function searchPatients() {
   });
 }
 
-function selectPatient(p) {
-  selPatient = p; selProvider = null; selSlot = null;
-  hide("patient-search-ui"); show("patient-selected-ui");
+async function selectPatient(p) {
+  selPatient = p;
+  selProvider = null;
+  selSlot = null;
+  patientDetail = null;
+
+  hide("patient-search-ui");
+  show("patient-selected-ui");
   $("badge-1").className = "step-badge done";
   $("pat-avatar").textContent = initials(p.full_name);
-  $("pat-name").textContent   = p.full_name;
-  $("pat-meta").textContent   = p.patient_id + "  \u00b7  DOB " + p.date_of_birth + "  \u00b7  " + p.phone;
-  resetProviderSection(p); checkReady();
+  $("pat-name").textContent = p.full_name;
+  $("pat-meta").textContent = p.patient_id + "  \u00b7  DOB " + p.date_of_birth + "  \u00b7  " + p.phone;
+
+  await loadPatientQuickView(p.patient_id);
+  resetProviderSection(p);
+  checkReady();
 }
 
 $("btn-patient-search").onclick = searchPatients;
-$("patient-q").addEventListener("keydown", e => { if (e.key==="Enter") searchPatients(); });
+$("patient-q").addEventListener("keydown", e => { if (e.key === "Enter") searchPatients(); });
+
 $("btn-change-patient").onclick = () => {
-  selPatient = selProvider = selSlot = null;
-  hide("patient-selected-ui"); show("patient-search-ui");
+  selPatient = null;
+  selProvider = null;
+  selSlot = null;
+  patientDetail = null;
+  hide("patient-selected-ui");
+  show("patient-search-ui");
   $("patient-results").innerHTML = "";
   $("badge-1").className = "step-badge";
-  resetProviderSection(null); checkReady();
+  $("prefs-status").textContent = "";
+  resetProviderSection(null);
+  checkReady();
+};
+
+$("btn-save-prefs").onclick = async () => {
+  if (!selPatient) return;
+  const payload = {
+    allow_sms: $("pref-sms").checked,
+    allow_email: $("pref-email").checked,
+    allow_phone: $("pref-phone").checked,
+    allow_portal: $("pref-portal").checked,
+    preferred_channel: $("pref-preferred").value,
+  };
+  const res = await fetch("/v1/booking/patients/" + encodeURIComponent(selPatient.patient_id) + "/messaging-preferences", {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    $("prefs-status").textContent = "Save failed";
+    return;
+  }
+  const updated = await res.json();
+  setQuickView(updated);
+  $("prefs-status").textContent = "Saved";
 };
 
 function resetProviderSection(patient) {
-  hide("rec-provider-ui"); hide("provider-search-ui"); hide("avail-section");
-  $("avail-grid").innerHTML = ""; hide("slot-label"); selSlot = null;
+  hide("rec-provider-ui");
+  hide("provider-search-ui");
+  hide("avail-section");
+  $("avail-grid").innerHTML = "";
+  hide("slot-label");
+  selSlot = null;
+
   if (!patient) { show("provider-prompt"); return; }
   hide("provider-prompt");
-  if (patient.default_provider_id) { loadRecommendedProvider(patient.default_provider_id); }
-  else { show("provider-search-ui"); }
+
+  if (patient.default_provider_id) {
+    loadRecommendedProvider(patient.default_provider_id);
+  } else {
+    show("provider-search-ui");
+  }
 }
 
 async function loadRecommendedProvider(provId) {
-  const rows = await fetch("/v1/booking/providers/search?q="+encodeURIComponent(provId)).then(r=>r.json());
+  const rows = await fetch("/v1/booking/providers/search?q="+encodeURIComponent(provId)).then(r => r.json());
   const prov = rows.find(p => p.provider_id === provId);
   if (!prov) { show("provider-search-ui"); return; }
+
   selProvider = prov;
   $("rec-name").textContent = prov.full_name;
   $("rec-meta").textContent = prov.specialty.replace(/_/g," ") + " \u00b7 " + prov.location_name;
-  show("rec-provider-ui"); checkReady();
+  show("rec-provider-ui");
+  checkReady();
 }
 
 $("btn-load-avail").onclick = () => { if (selProvider) loadAvailability(selProvider); };
 $("btn-change-provider").onclick = () => {
-  selProvider = null; selSlot = null;
-  hide("rec-provider-ui"); hide("avail-section");
-  show("provider-search-ui"); checkReady();
+  selProvider = null;
+  selSlot = null;
+  hide("rec-provider-ui");
+  hide("avail-section");
+  show("provider-search-ui");
+  checkReady();
 };
 
 async function searchProviders() {
   const q = $("provider-q").value.trim();
-  const rows = await fetch("/v1/booking/providers/search?q="+encodeURIComponent(q)).then(r=>r.json());
+  const rows = await fetch("/v1/booking/providers/search?q=" + encodeURIComponent(q)).then(r => r.json());
   const list = $("provider-results");
   list.innerHTML = "";
+
   rows.forEach(p => {
     const el = document.createElement("div");
     el.className = "result-item";
     el.innerHTML = '<div><div class="ri-name">'+p.full_name+'</div><div class="ri-meta">'+p.specialty.replace(/_/g," ")+" \u00b7 "+p.location_name+'</div></div><button class="btn btn-outline" style="font-size:12px">Select</button>';
     el.querySelector("button").onclick = () => {
-      selProvider = p; $("provider-results").innerHTML = "";
-      loadAvailability(p); checkReady();
+      selProvider = p;
+      $("provider-results").innerHTML = "";
+      loadAvailability(p);
+      checkReady();
     };
     list.appendChild(el);
   });
 }
 
 $("btn-provider-search").onclick = searchProviders;
-$("provider-q").addEventListener("keydown", e => { if (e.key==="Enter") searchProviders(); });
+$("provider-q").addEventListener("keydown", e => { if (e.key === "Enter") searchProviders(); });
 
 async function loadAvailability(provider) {
-  const days = await fetch("/v1/booking/providers/"+provider.provider_id+"/availability").then(r=>r.json());
-  $("avail-label").textContent = provider.full_name + " \u2014 Schedule";
+  const days = await fetch("/v1/booking/providers/" + provider.provider_id + "/availability").then(r => r.json());
+  $("avail-label").textContent = provider.full_name + " \u2014 Weekday Schedule";
   const grid = $("avail-grid");
-  grid.innerHTML = ""; selSlot = null; hide("slot-label"); show("avail-section");
+  grid.innerHTML = "";
+  selSlot = null;
+  hide("slot-label");
+  show("avail-section");
+
   days.forEach(day => {
     const col = document.createElement("div");
     const parts = day.day.split(" ");
     col.innerHTML = '<div class="avail-day-head">'+parts[0]+'<br>'+parts.slice(1).join(" ")+'</div>';
-    day.slots.slice(0,12).forEach(slot => {
+    day.slots.slice(0, 12).forEach(slot => {
       const btn = document.createElement("button");
-      btn.className = "slot-btn"; btn.textContent = fmtTime(slot.start_time); btn.disabled = !slot.available;
+      btn.className = "slot-btn";
+      btn.textContent = fmtTime(slot.start_time);
+      btn.disabled = !slot.available;
       btn.onclick = () => {
-        document.querySelectorAll(".slot-btn.selected").forEach(b=>b.classList.remove("selected"));
-        btn.classList.add("selected"); selSlot = slot.start_time;
-        const lbl = $("slot-label"); lbl.textContent = "\u2713 " + fmtFull(slot.start_time); lbl.classList.remove("hidden");
+        document.querySelectorAll(".slot-btn.selected").forEach(b => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        selSlot = slot.start_time;
+        const lbl = $("slot-label");
+        lbl.textContent = "\u2713 " + fmtFull(slot.start_time);
+        lbl.classList.remove("hidden");
         checkReady();
       };
       col.appendChild(btn);
@@ -583,60 +757,119 @@ $("appt-type").addEventListener("change", updateType);
 $("btn-schedule").onclick = async () => {
   if (!(selPatient && selProvider && selSlot)) return;
   const payload = {
-    patient_id: selPatient.patient_id, provider_id: selProvider.provider_id,
-    scheduled_at: new Date(selSlot).toISOString(), appointment_type: $("appt-type").value,
-    duration_minutes: TYPE_DUR[$("appt-type").value]||20,
-    urgent_care: bval("urgent-care"), insurance_payer: $("payer").value||null,
-    insurance_plan: $("plan").value||null, member_id: $("member-id").value||null,
-    referral_required: bval("referral-req"), referral_id: $("referral-id").value||null,
-    reason_for_visit: $("reason").value||null, interpreter_needed: bval("interpreter"),
-    reminder_channel: $("reminder").value, contact_name: $("contact-name").value||null,
-    contact_phone: $("contact-phone").value||null, notes: $("notes").value||null
+    patient_id: selPatient.patient_id,
+    provider_id: selProvider.provider_id,
+    scheduled_at: new Date(selSlot).toISOString(),
+    appointment_type: $("appt-type").value,
+    duration_minutes: TYPE_DUR[$("appt-type").value] || 20,
+    urgent_care: bval("urgent-care"),
+    insurance_payer: $("payer").value || null,
+    insurance_plan: $("plan").value || null,
+    member_id: $("member-id").value || null,
+    referral_required: bval("referral-req"),
+    referral_id: $("referral-id").value || null,
+    reason_for_visit: $("reason").value || null,
+    interpreter_needed: bval("interpreter"),
+    contact_name: $("contact-name").value || null,
+    contact_phone: $("contact-phone").value || null,
+    notes: $("notes").value || null,
   };
-  const btn = $("btn-schedule"); btn.disabled=true; btn.textContent="Scheduling\u2026";
-  const res = await fetch("/v1/booking/schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-  btn.disabled=false; btn.textContent="Schedule Appointment";
-  if (!res.ok) { alert((await res.json()).detail||"Could not schedule."); return; }
-  const body = await res.json(); lastPredId = body.prediction.prediction_id;
+
+  const btn = $("btn-schedule");
+  btn.disabled = true;
+  btn.textContent = "Scheduling\u2026";
+
+  const res = await fetch("/v1/booking/schedule", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  });
+
+  btn.disabled = false;
+  btn.textContent = "Schedule Appointment";
+
+  if (!res.ok) { alert((await res.json()).detail || "Could not schedule."); return; }
+  const body = await res.json();
+  lastPredId = body.prediction.prediction_id;
   renderConfirmation(payload, body.prediction);
 };
 
 function renderConfirmation(payload, pred) {
-  hide("booking-flow"); show("confirmation-screen");
-  const al = payload.appointment_type.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+  hide("booking-flow");
+  show("confirmation-screen");
+
+  const al = payload.appointment_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   $("confirm-summary").textContent = selPatient.full_name + "  \u00b7  " + selProvider.full_name + "  \u00b7  " + al + "  \u00b7  " + fmtFull(selSlot);
-  hide("actions-section"); $("wrong-check").checked=false; hide("feedback-form"); $("feedback-status").textContent="";
+
+  hide("actions-section");
+  $("wrong-check").checked = false;
+  hide("feedback-form");
+  $("feedback-status").textContent = "";
+
   const band = pred.risk_band;
   if (band === "not_applicable") { hide("risk-section"); show("na-section"); return; }
-  show("risk-section"); hide("na-section");
-  $("risk-bar").style.width = (BAR_W[band]||40)+"%";
-  $("risk-bar").style.background = BAR_COL[band]||"#8797a5";
-  const chip = $("risk-chip"); chip.className = "risk-chip "+(CHIP_CL[band]||"chip-not_enough_data");
+
+  show("risk-section");
+  hide("na-section");
+  $("risk-bar").style.width = (BAR_W[band] || 40) + "%";
+  $("risk-bar").style.background = BAR_COL[band] || "#8797a5";
+  const chip = $("risk-chip");
+  chip.className = "risk-chip " + (CHIP_CL[band] || "chip-not_enough_data");
   $("risk-chip-label").textContent = pred.risk_label;
   $("confidence-text").textContent = "Confidence: " + pred.confidence_label;
-  if (band==="high"||band==="medium") {
-    const acts = pred.recommended_actions.filter(a=>a!=="proceed_with_standard_workflow");
+
+  if (band === "high" || band === "medium") {
+    const acts = pred.recommended_actions.filter(a => a !== "proceed_with_standard_workflow");
     if (acts.length) {
-      const w=$("action-btns"); w.innerHTML="";
-      acts.forEach(a=>{ const b=document.createElement("button"); b.className="btn btn-plain"; b.style.fontSize="12px"; b.textContent=ACT_LBL[a]||a.replace(/_/g," "); w.appendChild(b); });
+      const w = $("action-btns");
+      w.innerHTML = "";
+      acts.forEach(a => {
+        const b = document.createElement("button");
+        b.className = "btn btn-plain";
+        b.style.fontSize = "12px";
+        b.textContent = ACT_LBL[a] || a.replace(/_/g," ");
+        w.appendChild(b);
+      });
       show("actions-section");
     }
   }
 }
 
-$("wrong-check").addEventListener("change",()=>{ $("wrong-check").checked?show("feedback-form"):hide("feedback-form"); });
+$("wrong-check").addEventListener("change", () => {
+  $("wrong-check").checked ? show("feedback-form") : hide("feedback-form");
+});
+
 $("btn-feedback").onclick = async () => {
   if (!lastPredId) return;
-  const res = await fetch("/v1/predictions/"+lastPredId+"/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_wrong:$("wrong-check").checked,reason_text:$("feedback-text").value||null,submitted_by:"scheduler_ui"})});
+  const res = await fetch("/v1/predictions/" + lastPredId + "/feedback", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      is_wrong: $("wrong-check").checked,
+      reason_text: $("feedback-text").value || null,
+      submitted_by: "scheduler_ui",
+    }),
+  });
   $("feedback-status").textContent = res.ok ? "Feedback saved." : "Save failed.";
 };
 
 $("btn-new-booking").onclick = () => {
-  selPatient=selProvider=selSlot=lastPredId=null;
-  show("booking-flow"); hide("confirmation-screen");
-  show("patient-search-ui"); hide("patient-selected-ui");
-  $("patient-results").innerHTML=""; $("patient-q").value="";
-  $("badge-1").className="step-badge"; resetProviderSection(null); $("btn-schedule").disabled=true;
+  selPatient = null;
+  selProvider = null;
+  selSlot = null;
+  lastPredId = null;
+  patientDetail = null;
+
+  show("booking-flow");
+  hide("confirmation-screen");
+  show("patient-search-ui");
+  hide("patient-selected-ui");
+  $("patient-results").innerHTML = "";
+  $("patient-q").value = "";
+  $("badge-1").className = "step-badge";
+  $("prefs-status").textContent = "";
+  resetProviderSection(null);
+  $("btn-schedule").disabled = true;
 };
 
 updateType();

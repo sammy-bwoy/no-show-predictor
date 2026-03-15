@@ -71,6 +71,32 @@ class PatientSearchResult(BaseModel):
     default_provider_id: str | None = None
 
 
+class PatientMessagingPreferences(BaseModel):
+    allow_sms: bool = True
+    allow_email: bool = True
+    allow_phone: bool = True
+    allow_portal: bool = True
+    preferred_channel: str = "auto"
+
+
+class PatientQuickViewResponse(BaseModel):
+    patient_id: str
+    full_name: str
+    date_of_birth: str
+    sex: str
+    country: str
+    city: str
+    state: str
+    phone: str
+    email: str
+    address_line: str
+    insurance_payer: str | None = None
+    insurance_plan: str | None = None
+    member_id: str | None = None
+    default_provider_id: str | None = None
+    messaging_preferences: PatientMessagingPreferences
+
+
 class ProviderSearchResult(BaseModel):
     provider_id: str
     full_name: str
@@ -103,10 +129,17 @@ class BookingScheduleRequest(BaseModel):
     referral_id: str | None = None
     reason_for_visit: str | None = None
     interpreter_needed: bool = False
-    reminder_channel: str = "sms"
     contact_name: str | None = None
     contact_phone: str | None = None
     notes: str | None = None
+
+
+class PatientMessagingPreferencesUpdate(BaseModel):
+    allow_sms: bool = True
+    allow_email: bool = True
+    allow_phone: bool = True
+    allow_portal: bool = True
+    preferred_channel: str = "auto"
 
 
 class BookingScheduleResponse(BaseModel):
